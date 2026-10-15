@@ -19,6 +19,11 @@
   "bin": {
     "mailflow-mcp": "src/cli.js"
   },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20"
   },
