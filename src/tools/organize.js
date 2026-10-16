@@ -4,7 +4,7 @@ import {
   LOOKUP_CONCURRENCY, isNotFound, messageSummary, fitLines, RESULT_LIMIT,
 } from './shared.js';
 import { loadAccounts, requireEnabledAccount } from '../accounts.js';
-import { roleOfPath, predictArchiveFolder, isAllMail, NON_INBOX_ROLES, SNOOZED_FOLDER, pathLabel } from '../folders.js';
+import { roleOfPath, predictArchiveFolder, NON_INBOX_ROLES, SNOOZED_FOLDER, pathLabel } from '../folders.js';
 import { untrustedBlock, formatDate, accountLabel } from '../format.js';
 import { mapSettled } from '../concurrency.js';
 import { MailflowError } from '../mailflowClient.js';
@@ -17,8 +17,7 @@ const MAX_SNOOZE_DAYS = 30;
 
 const CHANGE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const ONE_WAY = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
-// On Gmail an archive removes MailFlow's rows (the mail moves to All Mail, which MailFlow does
-// not show), and both give the messages new ids.
+// Archive and move both give the messages new ids, so the ones the caller holds stop working.
 const RELOCATE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
 const INCLUDE_NON_INBOX = z.boolean().default(false)
@@ -146,8 +145,9 @@ export function registerOrganizeTools(server, context) {
   registerTool(server, context, 'archive', {
     title: 'Archive',
     description: [
-      "Move messages to each one's account archive folder. MailFlow picks it: the account's archive mapping, else a folder flagged or named Archive;",
-      'on Gmail accounts with neither, the mail goes to All Mail, which MailFlow does not show (it stays in Gmail, but drops out of MailFlow and its search).',
+      "Move messages to each one's account archive folder. MailFlow picks it: the account's archive mapping, else a folder flagged or named Archive.",
+      'On a Gmail account with neither, MailFlow refuses the whole request, because the mail would go to All Mail and drop out of MailFlow:',
+      "archive the other accounts' messages on their own, and suggest the user create a Gmail label named Archive.",
       'Ids change: the result lists each message\'s Message-ID and account so you can find it again. Drafts, snoozed mail, and mail in Sent, Trash or Junk',
       '(unless includeNonInbox) are skipped and listed with the reason. To archive a conversation, pass only its INBOX messages in that account. At most 50 ids.',
     ].join(' '),
@@ -194,7 +194,6 @@ export function registerOrganizeTools(server, context) {
     }));
     const destination = row => {
       const target = predictArchiveFolder(folderLists.get(lower(row.account_id)));
-      if (target && isAllMail(target)) return `All Mail (${pathLabel(target.path)}), which MailFlow does not show: it stays in the mailbox but drops out of MailFlow and its search`;
       return target ? `the archive folder (most likely ${pathLabel(target.path)})` : 'the archive folder';
     };
     const text = relocationReport({ verb: 'Archived', requested: ids.length, acted: done, skipped, failed, destination });

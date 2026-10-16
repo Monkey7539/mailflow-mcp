@@ -95,10 +95,6 @@ export function predictArchiveFolder(folders) {
     || null;
 }
 
-export function isAllMail(folder) {
-  return String(folder?.special_use || '').toLowerCase() === '\\all';
-}
-
 // Folder paths go back to MailFlow exactly as they are, so one that a single display line would
 // alter is shown JSON-quoted.
 export function pathLabel(path) {

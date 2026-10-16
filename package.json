@@ -1,6 +1,6 @@
 {
   "name": "mailflow-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that lets Claude search, organize and draft mail in a self-hosted MailFlow, using a MailFlow API token",
   "private": true,
   "license": "MIT",

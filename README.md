@@ -26,7 +26,7 @@ This is an independent companion project, not part of MailFlow. It talks to Mail
 
 1. An administrator turns tokens on: MailFlow **Settings → Security → Allow API tokens on this server**. They are off by default.
 2. In **Settings → Security → API tokens**, create a token. Give it **read**, plus **organize** and **draft** if you want those; organize and draft both need read, because this server finds messages before it acts on them, and it refuses a token without read.
-3. Choose an expiry, and confirm with your two-factor code or password if MailFlow asks.
+3. Choose an expiry, up to a year, and confirm as MailFlow asks: with your two-factor code, your password, or, for an account that signs in through single sign-on, a sign-in through your provider in the last 10 minutes. A token confirmed through single sign-on lasts 30 days at most.
 4. Copy the token (`mfat_…`). MailFlow shows it once.
 
 Treat the token like a password: it opens your mailbox to whatever holds it, within its scopes. Revoke it in the same place when you no longer need it.
@@ -85,17 +85,17 @@ Without `accountId`, listing and search cover the accounts in MailFlow's unified
 claude mcp add --transport stdio mailflow \
   --env MAILFLOW_URL=https://mail.example.com \
   --env MAILFLOW_TOKEN=mfat_… \
-  -- npx -y github:Monkey7539/mailflow-mcp#v0.1.0
+  -- npx -y github:Monkey7539/mailflow-mcp#v0.1.1
 ```
 
-- The `#v0.1.0` pins a release: updating means changing that ref to a newer tag. Without a ref (`github:Monkey7539/mailflow-mcp`), npx runs whatever the main branch holds at that moment, including changes you have not looked at, so pin it.
+- The `#v0.1.1` pins a release: updating means changing that ref to a newer tag. Without a ref (`github:Monkey7539/mailflow-mcp`), npx runs whatever the main branch holds at that moment, including changes you have not looked at, so pin it.
 - Never add it with `--scope project` while the token is written into the command: project scope saves it in `.mcp.json`, which is meant to be committed. Use the default (local) scope or `--scope user`.
 - On Windows, a local clone is more dependable than npx:
 
   ```sh
   git clone https://github.com/Monkey7539/mailflow-mcp.git
   cd mailflow-mcp
-  git checkout v0.1.0
+  git checkout v0.1.1
   npm ci
   claude mcp add --transport stdio mailflow --env MAILFLOW_URL=https://mail.example.com --env MAILFLOW_TOKEN=mfat_… -- node C:/path/to/mailflow-mcp/src/cli.js
   ```
@@ -111,7 +111,7 @@ Add an entry to `claude_desktop_config.json` (Settings → Developer → Edit co
   "mcpServers": {
     "mailflow": {
       "command": "npx",
-      "args": ["-y", "github:Monkey7539/mailflow-mcp#v0.1.0"],
+      "args": ["-y", "github:Monkey7539/mailflow-mcp#v0.1.1"],
       "env": {
         "MAILFLOW_URL": "https://mail.example.com",
         "MAILFLOW_TOKEN": "mfat_…"
@@ -125,7 +125,7 @@ On Windows, npx may also need `"APPDATA": "C:\\Users\\you\\AppData\\Roaming"` in
 
 ## Other MCP clients
 
-Any client that starts stdio servers can run it: the command is `npx -y github:Monkey7539/mailflow-mcp#v0.1.0` (or `node <clone>/src/cli.js`), with `MAILFLOW_URL` and `MAILFLOW_TOKEN` in its environment. It logs to stderr only; stdout carries the protocol. When stdin closes it answers every request it has already read, then exits, so a script can pipe its requests in.
+Any client that starts stdio servers can run it: the command is `npx -y github:Monkey7539/mailflow-mcp#v0.1.1` (or `node <clone>/src/cli.js`), with `MAILFLOW_URL` and `MAILFLOW_TOKEN` in its environment. It logs to stderr only; stdout carries the protocol. When stdin closes it answers every request it has already read, then exits, so a script can pipe its requests in.
 
 ## Remote mode (HTTP)
 
@@ -168,7 +168,7 @@ It refuses, before anything reaches MailFlow: a missing or malformed token (401)
 
 ## Troubleshooting
 
-**401 "MailFlow rejected the API token: it is invalid, expired or revoked".** Create a new token. A MailFlow backup restore deletes every token, and a password reset (yours, or an administrator setting your password) revokes all of yours.
+**401 "MailFlow rejected the API token: it is invalid, expired or revoked".** Create a new token. A MailFlow backup restore deletes every token, and a password reset (yours, or an administrator setting your password) revokes all of yours. So do changes to the server's sign-in rules: an administrator turning off password sign-in deletes every token not confirmed through single sign-on, requiring two-factor deletes those confirmed with only a password, turning off your two-factor deletes all of yours, and turning off a single sign-on provider deletes the tokens confirmed through it.
 
 **401 "… because API tokens are turned off on this server".** An administrator turns them on in Settings → Security.
 
@@ -182,7 +182,7 @@ It refuses, before anything reaches MailFlow: a missing or malformed token (401)
 
 **"This is not MailFlow's API (check MAILFLOW_URL)" or "MAILFLOW_URL redirects to …".** `MAILFLOW_URL` must be MailFlow's own address, without `/api`. When it redirects, use the address it redirects to.
 
-**An archived Gmail message disappeared.** On a Gmail account without an archive label, archive moves the mail to All Mail, which MailFlow does not show or search. It is still in Gmail; undo it there. A Gmail label named Archive makes archive an ordinary move.
+**403 "API tokens cannot archive into Gmail's All Mail".** On a Gmail account without an archive label or an archive folder mapping, archiving would move the mail to All Mail, which MailFlow does not show or search, so MailFlow refuses token archives there, and refuses the whole request when any message is in such an account. Create a Gmail label named Archive (or choose an archive folder in the account's settings in MailFlow) and archive becomes an ordinary move; meanwhile, archive the other accounts' messages on their own.
 
 **A message id stopped working.** Ids change when mail is moved or archived. Find the message again with `read_message` and its `messageId` and `accountId`, or with `search_mail`.
 

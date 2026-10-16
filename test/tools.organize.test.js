@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startFakeMailflow, TOKENS, IDS } from '../test-support/fakeMailflow.js';
+import { startFakeMailflow, TOKENS, IDS, ALL_MAIL_ARCHIVE_ERROR } from '../test-support/fakeMailflow.js';
 import { connect, untrustedPart, outsideUntrusted } from '../test-support/harness.js';
 import { InFlight } from '../src/concurrency.js';
 
@@ -54,15 +54,14 @@ test('star stars and unstars', async () => {
 });
 
 test('archive skips drafts, snoozed mail, Sent, Trash, archived and missing ids, and says why', async () => {
-  const ids = [IDS.m1, IDS.draft, IDS.sent, IDS.trash, IDS.snoozed, IDS.archived, IDS.missing, IDS.h1];
+  const ids = [IDS.m1, IDS.draft, IDS.sent, IDS.trash, IDS.snoozed, IDS.archived, IDS.missing];
   const { text, isError } = await session.call('archive', { ids });
   assert.equal(isError, undefined);
-  assert.equal(fake.apiRequests().filter(entry => entry.path === '/api/mail/resolve-message').length, 8, 'each row is loaded first');
+  assert.equal(fake.apiRequests().filter(entry => entry.path === '/api/mail/resolve-message').length, 7, 'each row is loaded first');
   const [request] = posts('/api/mail/messages/bulk-archive');
-  assert.deepEqual(request.body, { ids: [IDS.m1, IDS.h1] });
-  assert.match(text, /^Archived 2 of 8 messages\./);
+  assert.deepEqual(request.body, { ids: [IDS.m1] });
+  assert.match(text, /^Archived 1 of 7 messages\./);
   assert.match(text, new RegExp(`\\[1\\] was id=${IDS.m1} · account_id=${IDS.work} · from INBOX → the archive folder \\(most likely Archive\\)`));
-  assert.match(text, new RegExp(`\\[2\\] was id=${IDS.h1} · account_id=${IDS.home} · from INBOX → All Mail \\(\\[Gmail\\]/All Mail\\), which MailFlow does not show`));
   const skipped = {
     [IDS.draft]: 'a draft (this tool never moves or archives drafts)',
     [IDS.sent]: 'in Sent (Sent); pass includeNonInbox: true to include it',
@@ -74,8 +73,22 @@ test('archive skips drafts, snoozed mail, Sent, Trash, archived and missing ids,
   for (const [id, reason] of Object.entries(skipped)) assert.ok(text.includes(`id=${id} — ${reason}`), `${id}: ${reason}`);
   const inside = untrustedPart(text);
   assert.match(inside, /\[1\] From: Alice Example <alice@example.com> \| Subject: Lunch on Friday\? \| Message-ID: <m1@example.com>/);
-  assert.match(inside, /\[2\] .*Message-ID: <h1@example.com>/);
   assert.ok(!outsideUntrusted(text).includes('<m1@example.com>'));
+});
+
+test("archive into Gmail's All Mail is MailFlow's refusal, passed on with what to do about it", async () => {
+  const { text, isError } = await session.call('archive', { ids: [IDS.h1, IDS.m1] });
+  assert.equal(isError, true);
+  assert.deepEqual(posts('/api/mail/messages/bulk-archive')[0].body, { ids: [IDS.h1, IDS.m1] });
+  assert.ok(text.includes(`The archive request failed: MailFlow refused this request: ${ALL_MAIL_ARCHIVE_ERROR}`), text);
+});
+
+test('archive on Gmail goes into a label named Archive once the account has one', async () => {
+  const inbox = fake.users.pat.folders[IDS.home].find(entry => entry.path === 'INBOX');
+  fake.users.pat.folders[IDS.home].push({ ...inbox, path: 'Archive', name: 'Archive', special_use: null });
+  const { text, isError } = await session.call('archive', { ids: [IDS.h1] });
+  assert.equal(isError, undefined);
+  assert.match(text, new RegExp(`\\[1\\] was id=${IDS.h1} · account_id=${IDS.home} · from INBOX → the archive folder \\(most likely Archive\\)`));
 });
 
 test('archive with includeNonInbox takes Sent and Trash too, never drafts', async () => {

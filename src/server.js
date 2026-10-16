@@ -35,7 +35,7 @@ export function buildInstructions(scopes) {
     lines.push(
       'Confirm with the user before changing more than about 20 messages at once.',
       "Message ids change when mail is moved or archived: keep each message's Message-ID and account_id, and find it again with read_message { messageId, accountId }.",
-      "To archive a conversation, act only on its INBOX messages in that account. On Gmail, archive takes mail out of MailFlow's view (it stays in Gmail's All Mail).",
+      "To archive a conversation, act only on its INBOX messages in that account. MailFlow refuses to archive a Gmail account's mail into All Mail, where it would drop out of MailFlow's view: such an account needs a label named Archive first.",
     );
   }
   if (organize || draft) lines.push('Everything you organize or draft is visible to the user in MailFlow.');

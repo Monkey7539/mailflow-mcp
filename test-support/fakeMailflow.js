@@ -15,6 +15,9 @@ export const TOKENS = {
   sam: token('samAllScopes'),
 };
 export const UNKNOWN_TOKEN = token('neverIssued');
+// MailFlow's refusal of a token archive into Gmail's All Mail.
+export const ALL_MAIL_ARCHIVE_ERROR = "API tokens cannot archive into Gmail's All Mail, where the mail drops out of MailFlow. "
+  + "Create a Gmail label named Archive, or choose an archive folder in the account's settings.";
 
 export const IDS = {
   work: '11111111-1111-4111-8111-111111111111',
@@ -447,14 +450,18 @@ export async function startFakeMailflow() {
       if (!validIds(body?.ids)) return [400, { error: 'ids required' }];
       const rows = body.ids.map(id => findRow(data, id)).filter(Boolean);
       if (rows.some(row => row.is_draft || row.folder === 'Drafts')) return [403, { error: 'API tokens cannot move or archive drafts' }];
+      const archiveTarget = row => {
+        const list = data.folders[row.account_id] || [];
+        return list.find(item => item.special_use === '\\Archive') || list.find(item => item.name.toLowerCase().includes('archive')) || list.find(item => item.special_use === '\\All');
+      };
+      // As MailFlow does: a token may not archive into Gmail's All Mail, so the whole request is refused.
+      if (rows.some(row => archiveTarget(row)?.special_use === '\\All')) return [403, { error: ALL_MAIL_ARCHIVE_ERROR }];
       const archived = [];
       const noArchiveFolder = new Set();
       for (const row of rows) {
-        const list = data.folders[row.account_id] || [];
-        const target = list.find(item => item.special_use === '\\Archive') || list.find(item => item.name.toLowerCase().includes('archive')) || list.find(item => item.special_use === '\\All');
+        const target = archiveTarget(row);
         if (!target) { noArchiveFolder.add(row.account_id); continue; }
-        if (target.special_use === '\\All') data.messages.splice(data.messages.indexOf(row), 1);
-        else relocate(data, row, target.path);
+        relocate(data, row, target.path);
         archived.push(row.id);
       }
       return [200, { ok: true, archived, noArchiveFolder: [...noArchiveFolder] }];
